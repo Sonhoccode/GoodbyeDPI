@@ -4,9 +4,9 @@ A Windows desktop app by **[Sonhoccode](https://github.com/Sonhoccode)** for ins
 
 ## Download and install
 
-Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.05](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.05).
+Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.06](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.06).
 
-Run `GoodbyeDPI-Manager-All-in-One-1.05.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. New installations use the Steam compatible `-1` preset with GoodbyeDPI DNS redirection to Yandex on port 1253. Existing services keep their current settings unless they have this app's exact legacy DNS configuration.
+Run `GoodbyeDPI-Manager-All-in-One-1.06.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. New installations use the Steam compatible `-1` preset with GoodbyeDPI DNS redirection to Yandex on port 1253. Existing services keep their current settings unless they have this app's exact legacy DNS configuration.
 
 ## Features
 
@@ -16,7 +16,7 @@ Run `GoodbyeDPI-Manager-All-in-One-1.05.exe` on Windows 10/11 x64 and approve th
 - Choose Steam compatible `-1` with DNS redirection, plain `-5`, or plain `-6`. Stop the service before applying a new preset.
 - Set whether the service starts with Windows.
 - Switch between English (default), Vietnamese, Spanish, and Russian. The language choice is saved.
-- Check for a newer release when the app opens. If one is available, choose **Install** to download the installer, verify its SHA-256, and run it. Updates are not installed silently.
+- Check for a newer release when the app opens and show an update prompt. Choose **Update now** to download the installer, verify its SHA-256, and run it, or **Later** to dismiss the prompt. Updates are not installed silently.
 - Uninstall from the Settings page.
 
 GoodbyeDPI may not work on every network. Managing the Windows service requires Administrator privileges. This release is not commercially code-signed.

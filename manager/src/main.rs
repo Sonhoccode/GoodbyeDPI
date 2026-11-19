@@ -68,6 +68,7 @@ struct ManagerApp {
     download_receiver: Option<Receiver<Result<PathBuf, String>>>,
     available_release: Option<update::Release>,
     update_message: String,
+    show_update_prompt: bool,
 }
 
 const LANGUAGES: [&str; 4] = ["Tiếng Việt", "English", "Español", "Русский"];
@@ -204,6 +205,7 @@ impl Default for ManagerApp {
             download_receiver: None,
             available_release: None,
             update_message: String::new(),
+            show_update_prompt: false,
         }
     }
 }
@@ -235,7 +237,11 @@ impl eframe::App for ManagerApp {
         }
         if let Some(Ok(result)) = self.update_receiver.as_ref().map(|receiver| receiver.try_recv()) {
             match result {
-                Ok(Some(release)) => { self.update_message = format!("{} available", release.version); self.available_release = Some(release); }
+                Ok(Some(release)) => {
+                    self.update_message = format!("{} available", release.version);
+                    self.available_release = Some(release);
+                    self.show_update_prompt = true;
+                }
                 Ok(None) => self.update_message = "Up to date".into(),
                 Err(error) => self.update_message = format!("Update check failed: {error}"),
             }
@@ -324,11 +330,7 @@ impl eframe::App for ManagerApp {
                     ui.label(if self.update_message.is_empty() { "Checking for updates…" } else { &self.update_message });
                     if let Some(release) = &self.available_release {
                         if ui.add_enabled(self.download_receiver.is_none(), egui::Button::new(format!("Install {}", release.version))).clicked() {
-                            let release = release.clone();
-                            let (sender, receiver) = mpsc::channel();
-                            std::thread::spawn(move || { let _ = sender.send(update::download(&release)); });
-                            self.download_receiver = Some(receiver);
-                            self.update_message = "Downloading and verifying installer…".into();
+                            self.start_update();
                         }
                     }
                     ui.add_space(20.0);
@@ -418,7 +420,7 @@ impl eframe::App for ManagerApp {
                     ui.label(RichText::new(if self.message.is_empty() { tr(self.language, "Sẵn sàng", "Ready", "Listo", "Готово") } else { &self.message }).size(13.0).color(Color32::from_rgb(203, 213, 225)));
                 });
                 ui.with_layout(Layout::bottom_up(Align::RIGHT), |ui| {
-                    ui.label(RichText::new("GoodbyeDPI Manager 1.05").size(11.0).color(Color32::from_rgb(140, 149, 159)));
+                    ui.label(RichText::new("GoodbyeDPI Manager 1.06").size(11.0).color(Color32::from_rgb(140, 149, 159)));
                 });
             });
         if self.confirm_uninstall {
@@ -447,10 +449,44 @@ impl eframe::App for ManagerApp {
                         .fit_to_exact_size(Vec2::new(320.0, 386.0)));
                 });
         }
+        if self.show_update_prompt {
+            let mut open = true;
+            let mut update_now = false;
+            let mut later = false;
+            egui::Window::new(tr(self.language, "Có bản cập nhật mới", "Update available", "Actualización disponible", "Доступно обновление"))
+                .open(&mut open).collapsible(false).resizable(false).show(root_ui.ctx(), |ui| {
+                    if let Some(release) = &self.available_release {
+                        ui.label(format!("GoodbyeDPI Manager {}", release.version));
+                        ui.label(tr(self.language, "Bạn muốn cập nhật ngay không?", "Would you like to update now?", "¿Quieres actualizar ahora?", "Обновить сейчас?"));
+                    }
+                    if self.download_receiver.is_some() || self.update_message.starts_with("Update failed:")
+                        || self.update_message.starts_with("Cannot run installer:") {
+                        ui.label(&self.update_message);
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.add_enabled(self.download_receiver.is_none(), egui::Button::new(tr(self.language, "Cập nhật ngay", "Update now", "Actualizar ahora", "Обновить сейчас"))).clicked() {
+                            update_now = true;
+                        }
+                        if ui.button(tr(self.language, "Để sau", "Later", "Más tarde", "Позже")).clicked() {
+                            later = true;
+                        }
+                    });
+                });
+            self.show_update_prompt = open && !later;
+            if update_now { self.start_update(); }
+        }
     }
 }
 
 impl ManagerApp {
+    fn start_update(&mut self) {
+        let Some(release) = self.available_release.clone() else { return; };
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || { let _ = sender.send(update::download(&release)); });
+        self.download_receiver = Some(receiver);
+        self.update_message = "Downloading and verifying installer…".into();
+    }
+
     fn run_action(&mut self, start: bool) {
         self.status = AppStatus::Pending;
         self.message.clear();
