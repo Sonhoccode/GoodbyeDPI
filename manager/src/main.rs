@@ -88,7 +88,10 @@ fn save_language(language: usize) -> std::io::Result<()> {
 const LEGACY_DNS_ARGS: &str = "--dns-addr 77.88.8.8 --dns-port 1253 --dnsv6-addr 2a02:6b8::feed:0ff --dnsv6-port 1253";
 
 fn preset_from_command(command: &str) -> usize {
-    if command.split_whitespace().any(|argument| argument == "-6") { 1 } else { 0 }
+    let arguments: Vec<_> = command.split_whitespace().collect();
+    if arguments.contains(&"-1") && arguments.contains(&"--dns-addr") { 2 }
+    else if arguments.contains(&"-6") { 1 }
+    else { 0 }
 }
 
 fn query_preset() -> usize {
@@ -99,7 +102,7 @@ fn query_preset() -> usize {
 
 fn apply_preset(preset: usize) -> Result<(), String> {
     if query_status() != AppStatus::Stopped { return Err("Stop the service first".into()); }
-    change_service_preset(if preset == 1 { "-6" } else { "-5" })
+    change_service_preset(preset)
 }
 
 fn bundled_engine() -> Result<PathBuf, String> {
@@ -109,7 +112,14 @@ fn bundled_engine() -> Result<PathBuf, String> {
     Ok(engine)
 }
 
-fn change_service_preset(mode: &str) -> Result<(), String> {
+fn preset_arguments(preset: usize) -> Result<Vec<std::ffi::OsString>, String> {
+    let mode = match preset { 0 => "-5", 1 => "-6", 2 => "-1", _ => return Err("Unknown preset".into()) };
+    let mut arguments = vec![mode.into()];
+    if preset == 2 { arguments.extend(LEGACY_DNS_ARGS.split_whitespace().map(Into::into)); }
+    Ok(arguments)
+}
+
+fn change_service_preset(preset: usize) -> Result<(), String> {
     let service = open_service(ServiceAccess::QUERY_CONFIG | ServiceAccess::CHANGE_CONFIG)
         .map_err(|error| error.to_string())?;
     let config = service.query_config().map_err(|error| error.to_string())?;
@@ -117,7 +127,7 @@ fn change_service_preset(mode: &str) -> Result<(), String> {
         name: SERVICE_NAME.into(), display_name: config.display_name,
         service_type: config.service_type, start_type: config.start_type,
         error_control: config.error_control, executable_path: bundled_engine()?,
-        launch_arguments: vec![mode.into()], dependencies: config.dependencies,
+        launch_arguments: preset_arguments(preset)?, dependencies: config.dependencies,
         account_name: config.account_name, account_password: None,
     };
     service.change_config(&info).map_err(|error| error.to_string())
@@ -135,7 +145,7 @@ fn migrate_legacy_dns_service() -> Result<(), String> {
     let config = service.query_config().map_err(|error| error.to_string())?;
     let Some(mode) = legacy_dns_mode(&config.executable_path.to_string_lossy(), &engine) else { return Ok(()); };
     let was_running = query_status() == AppStatus::Running;
-    change_service_preset(mode)?;
+    change_service_preset(if mode == "-6" { 1 } else { 0 })?;
     if was_running {
         set_service_running(false)?;
         set_service_running(true)?;
@@ -264,10 +274,18 @@ impl eframe::App for ManagerApp {
                     }
                     ui.add_space(18.0);
                     ui.label(RichText::new(tr(self.language, "Preset kết nối", "Connection preset", "Perfil de conexión", "Профиль подключения")).strong());
-                    egui::ComboBox::from_id_salt("preset").selected_text(if self.preset == 0 { "Compatible (-5)" } else { "Alternative (-6)" }).show_ui(ui, |ui| {
+                    egui::ComboBox::from_id_salt("preset").selected_text(match self.preset {
+                        2 => "Steam compatible (-1 + DNS)",
+                        1 => "Alternative (-6)",
+                        _ => "Compatible (-5)",
+                    }).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.preset, 2, "Steam compatible (-1 + DNS)");
                         ui.selectable_value(&mut self.preset, 0, "Compatible (-5)");
                         ui.selectable_value(&mut self.preset, 1, "Alternative (-6)");
                     });
+                    if self.preset == 2 {
+                        ui.label(tr(self.language, "Chuyển DNS qua GoodbyeDPI đến Yandex (cổng 1253).", "GoodbyeDPI redirects DNS to Yandex (port 1253).", "GoodbyeDPI redirige DNS a Yandex (puerto 1253).", "GoodbyeDPI перенаправляет DNS на Yandex (порт 1253)."));
+                    }
                     ui.label(tr(self.language, "Dừng dịch vụ trước khi áp dụng preset.", "Stop the service before applying a preset.", "Detén el servicio antes de aplicar un perfil.", "Остановите службу перед применением профиля."));
                     if ui.add_enabled(self.status == AppStatus::Stopped, egui::Button::new(tr(self.language, "Áp dụng preset", "Apply preset", "Aplicar perfil", "Применить профиль"))).clicked() {
                         match apply_preset(self.preset) {
@@ -382,7 +400,7 @@ impl eframe::App for ManagerApp {
                     ui.label(RichText::new(if self.message.is_empty() { tr(self.language, "Sẵn sàng", "Ready", "Listo", "Готово") } else { &self.message }).size(13.0).color(Color32::from_rgb(203, 213, 225)));
                 });
                 ui.with_layout(Layout::bottom_up(Align::RIGHT), |ui| {
-                    ui.label(RichText::new("GoodbyeDPI Manager 1.03").size(11.0).color(Color32::from_rgb(140, 149, 159)));
+                    ui.label(RichText::new("GoodbyeDPI Manager 1.04").size(11.0).color(Color32::from_rgb(140, 149, 159)));
                 });
             });
         if self.confirm_uninstall {
@@ -485,7 +503,7 @@ fn install_service() -> Result<(), String> {
         name: SERVICE_NAME.into(), display_name: "GoodbyeDPI".into(),
         service_type: ServiceType::OWN_PROCESS, start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal, executable_path: engine,
-        launch_arguments: vec!["-5".into()],
+        launch_arguments: preset_arguments(2)?,
         dependencies: vec![], account_name: None, account_password: None,
     };
     manager.create_service(&info, ServiceAccess::QUERY_STATUS).map_err(|error| error.to_string())?;
@@ -511,7 +529,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("GoodbyeDPI Manager")
             .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).expect("invalid app icon"))
-            .with_inner_size([560.0, 590.0])
+            .with_inner_size([560.0, 620.0])
             .with_resizable(false)
             .with_maximize_button(false),
         ..Default::default()
@@ -551,6 +569,9 @@ mod tests {
         let engine = Path::new(r"C:\Program Files\GoodbyeDPI Manager\engine\goodbyedpi.exe");
         assert_eq!(preset_from_command(&format!("\"{}\" -6", engine.display())), 1);
         assert_eq!(preset_from_command(&format!("\"{}\" -5", engine.display())), 0);
+        assert_eq!(preset_from_command(&format!("\"{}\" -1 {LEGACY_DNS_ARGS}", engine.display())), 2);
+        assert_eq!(preset_arguments(2).unwrap().len(), 9);
+        assert!(preset_arguments(3).is_err());
         assert_eq!(legacy_dns_mode(&format!("\"{}\" -5 {LEGACY_DNS_ARGS}", engine.display()), engine), Some("-5"));
         assert_eq!(legacy_dns_mode(&format!("\"{}\" -5", engine.display()), engine), None);
     }

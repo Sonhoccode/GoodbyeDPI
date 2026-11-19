@@ -30,7 +30,7 @@ pub fn check() -> Result<Option<Release>, String> {
         .call().map_err(|error| error.to_string())?
         .into_json().map_err(|error| error.to_string())?;
     let version = value["tag_name"].as_str().ok_or("Release tag missing")?;
-    if version_number(version).is_none_or(|number| number <= (1, 3)) { return Ok(None); }
+    if version_number(version).is_none_or(|number| number <= (1, 4)) { return Ok(None); }
     let asset = value["assets"].as_array().and_then(|assets| assets.iter().find(|asset| {
         asset["name"].as_str().is_some_and(|name| name.starts_with(ASSET_PREFIX) && name.ends_with(".exe"))
     })).ok_or("Installer asset missing")?;

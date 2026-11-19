@@ -1,5 +1,5 @@
 #define MyAppName "GoodbyeDPI Manager"
-#define MyAppVersion "1.03"
+#define MyAppVersion "1.04"
 #define MyAppExeName "goodbyedpi-manager.exe"
 
 [Setup]
@@ -11,7 +11,7 @@ DefaultDirName={autopf}\GoodbyeDPI Manager
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=..\..\..\..\outputs
-OutputBaseFilename=GoodbyeDPI-Manager-All-in-One-1.03
+OutputBaseFilename=GoodbyeDPI-Manager-All-in-One-1.04
 SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
