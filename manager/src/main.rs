@@ -5,9 +5,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc::{self, Receiver};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Align, Color32, Layout, RichText, Stroke, Vec2};
+use tray_icon::{Icon, TrayIcon, TrayIconBuilder, menu::{Menu, MenuEvent, MenuItem}};
 use windows_service::service::{ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState, ServiceType};
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
@@ -46,6 +49,9 @@ impl AppStatus {
 }
 
 struct ManagerApp {
+    tray_icon: Option<TrayIcon>,
+    tray_items: Option<(MenuItem, MenuItem)>,
+    exiting: Arc<AtomicBool>,
     status: AppStatus,
     message: String,
     last_refresh: Instant,
@@ -179,6 +185,9 @@ impl Default for ManagerApp {
         let (steam_sender, steam_receiver) = mpsc::channel();
         std::thread::spawn(move || { let _ = steam_sender.send(check_steam_website()); });
         Self {
+            tray_icon: None,
+            tray_items: None,
+            exiting: Arc::new(AtomicBool::new(false)),
             status: query_status(),
             message: String::new(),
             last_refresh: Instant::now(),
@@ -201,6 +210,11 @@ impl Default for ManagerApp {
 
 impl eframe::App for ManagerApp {
     fn ui(&mut self, root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if self.tray_icon.is_some() && !self.exiting.load(Ordering::Relaxed)
+            && root_ui.ctx().input(|input| input.viewport().close_requested()) {
+            root_ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            root_ui.ctx().send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
         if let Some(Ok((start, result))) = self.action_receiver.as_ref().map(|receiver| receiver.try_recv()) {
             self.message = match result {
                 Ok(()) => tr(self.language,
@@ -230,7 +244,7 @@ impl eframe::App for ManagerApp {
         if let Some(Ok(result)) = self.download_receiver.as_ref().map(|receiver| receiver.try_recv()) {
             match result {
                 Ok(path) => match Command::new(path).spawn() {
-                    Ok(_) => root_ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+                    Ok(_) => { self.exiting.store(true, Ordering::Relaxed); root_ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close); }
                     Err(error) => self.update_message = format!("Cannot run installer: {error}"),
                 },
                 Err(error) => self.update_message = format!("Update failed: {error}"),
@@ -271,6 +285,10 @@ impl eframe::App for ManagerApp {
                     });
                     if self.language != old_language {
                         if let Err(error) = save_language(self.language) { self.message = error.to_string(); }
+                        if let Some((show, exit)) = &self.tray_items {
+                            show.set_text(tr(self.language, "Mở GoodbyeDPI Manager", "Open GoodbyeDPI Manager", "Abrir GoodbyeDPI Manager", "Открыть GoodbyeDPI Manager"));
+                            exit.set_text(tr(self.language, "Thoát Manager", "Exit Manager", "Salir del Manager", "Выйти из Manager"));
+                        }
                     }
                     ui.add_space(18.0);
                     ui.label(RichText::new(tr(self.language, "Preset kết nối", "Connection preset", "Perfil de conexión", "Профиль подключения")).strong());
@@ -400,7 +418,7 @@ impl eframe::App for ManagerApp {
                     ui.label(RichText::new(if self.message.is_empty() { tr(self.language, "Sẵn sàng", "Ready", "Listo", "Готово") } else { &self.message }).size(13.0).color(Color32::from_rgb(203, 213, 225)));
                 });
                 ui.with_layout(Layout::bottom_up(Align::RIGHT), |ui| {
-                    ui.label(RichText::new("GoodbyeDPI Manager 1.04").size(11.0).color(Color32::from_rgb(140, 149, 159)));
+                    ui.label(RichText::new("GoodbyeDPI Manager 1.05").size(11.0).color(Color32::from_rgb(140, 149, 159)));
                 });
             });
         if self.confirm_uninstall {
@@ -413,7 +431,7 @@ impl eframe::App for ManagerApp {
                             self.confirm_uninstall = false;
                             if let Some(path) = uninstaller_path() {
                                 match Command::new(path).spawn() {
-                                    Ok(_) => root_ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+                                    Ok(_) => { self.exiting.store(true, Ordering::Relaxed); root_ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close); }
                                     Err(error) => self.message = error.to_string(),
                                 }
                             }
@@ -541,7 +559,37 @@ fn main() -> eframe::Result {
         Box::new(|cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::<ManagerApp>::default())
+            let mut app = ManagerApp::default();
+            let tray_menu = Menu::new();
+            let show = MenuItem::with_id("show", tr(app.language, "Mở GoodbyeDPI Manager", "Open GoodbyeDPI Manager", "Abrir GoodbyeDPI Manager", "Открыть GoodbyeDPI Manager"), true, None);
+            let exit = MenuItem::with_id("exit", tr(app.language, "Thoát Manager", "Exit Manager", "Salir del Manager", "Выйти из Manager"), true, None);
+            let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).expect("invalid tray icon");
+            if tray_menu.append(&show).is_ok() && tray_menu.append(&exit).is_ok() {
+                if let Ok(icon) = Icon::from_rgba(icon.rgba, icon.width, icon.height) {
+                    if let Ok(tray) = TrayIconBuilder::new().with_menu(Box::new(tray_menu))
+                        .with_tooltip("GoodbyeDPI Manager").with_icon(icon).build() {
+                        let ctx = cc.egui_ctx.clone();
+                        let exiting = app.exiting.clone();
+                        MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+                            match event.id.0.as_str() {
+                                "show" => {
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                                }
+                                "exit" => {
+                                    exiting.store(true, Ordering::Relaxed);
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                }
+                                _ => return,
+                            }
+                            ctx.request_repaint();
+                        }));
+                        app.tray_icon = Some(tray);
+                        app.tray_items = Some((show, exit));
+                    }
+                }
+            }
+            Ok(Box::new(app))
         }),
     )
 }

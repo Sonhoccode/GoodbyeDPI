@@ -4,13 +4,14 @@ A Windows desktop app by **[Sonhoccode](https://github.com/Sonhoccode)** for ins
 
 ## Download and install
 
-Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.04](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.04).
+Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.05](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.05).
 
-Run `GoodbyeDPI-Manager-All-in-One-1.04.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. New installations use the Steam compatible `-1` preset with GoodbyeDPI DNS redirection to Yandex on port 1253. Existing services keep their current settings unless they have this app's exact legacy DNS configuration.
+Run `GoodbyeDPI-Manager-All-in-One-1.05.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. New installations use the Steam compatible `-1` preset with GoodbyeDPI DNS redirection to Yandex on port 1253. Existing services keep their current settings unless they have this app's exact legacy DNS configuration.
 
 ## Features
 
 - Start, stop, and monitor the GoodbyeDPI service.
+- Close the window to the system tray; use the tray menu to reopen or exit the manager. Exiting the manager leaves the service running.
 - See progress while the service changes state, and check whether the Steam website is reachable.
 - Choose Steam compatible `-1` with DNS redirection, plain `-5`, or plain `-6`. Stop the service before applying a new preset.
 - Set whether the service starts with Windows.

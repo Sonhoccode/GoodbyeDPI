@@ -7,8 +7,8 @@ fn main() {
             .set("ProductName", "GoodbyeDPI Manager")
             .set("FileDescription", "Bật và tắt dịch vụ GoodbyeDPI")
             .set("LegalCopyright", "GoodbyeDPI Manager")
-            .set("ProductVersion", "1.4.0")
-            .set("FileVersion", "1.4.0");
+            .set("ProductVersion", "1.5.0")
+            .set("FileVersion", "1.5.0");
         resource.compile().expect("không thể biên dịch tài nguyên Windows");
     }
 }
