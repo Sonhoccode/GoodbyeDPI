@@ -1,0 +1,21 @@
+[package]
+name = "goodbyedpi-manager"
+version = "1.0.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+eframe = "0.37.0"
+windows-service = "0.8.1"
+ureq = { version = "2.12", features = ["json"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[build-dependencies]
+winres = "0.1.12"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
