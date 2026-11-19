@@ -55,6 +55,9 @@ struct ManagerApp {
     preset: usize,
     confirm_uninstall: bool,
     show_coffee: bool,
+    action_receiver: Option<Receiver<(bool, Result<(), String>)>>,
+    steam_receiver: Option<Receiver<Result<(), String>>>,
+    steam_result: Option<Result<(), String>>,
     update_receiver: Option<Receiver<Result<Option<update::Release>, String>>>,
     download_receiver: Option<Receiver<Result<PathBuf, String>>>,
     available_release: Option<update::Release>,
@@ -125,6 +128,8 @@ impl Default for ManagerApp {
     fn default() -> Self {
         let (sender, receiver) = mpsc::channel();
         std::thread::spawn(move || { let _ = sender.send(update::check()); });
+        let (steam_sender, steam_receiver) = mpsc::channel();
+        std::thread::spawn(move || { let _ = steam_sender.send(check_steam_website()); });
         Self {
             status: query_status(),
             message: String::new(),
@@ -135,6 +140,9 @@ impl Default for ManagerApp {
             preset: query_preset(),
             confirm_uninstall: false,
             show_coffee: false,
+            action_receiver: None,
+            steam_receiver: Some(steam_receiver),
+            steam_result: None,
             update_receiver: Some(receiver),
             download_receiver: None,
             available_release: None,
@@ -145,6 +153,24 @@ impl Default for ManagerApp {
 
 impl eframe::App for ManagerApp {
     fn ui(&mut self, root_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if let Some(Ok((start, result))) = self.action_receiver.as_ref().map(|receiver| receiver.try_recv()) {
+            self.message = match result {
+                Ok(()) => tr(self.language,
+                    if start { "Đã bật GoodbyeDPI" } else { "Đã tắt GoodbyeDPI" },
+                    if start { "GoodbyeDPI started" } else { "GoodbyeDPI stopped" },
+                    if start { "GoodbyeDPI activado" } else { "GoodbyeDPI detenido" },
+                    if start { "GoodbyeDPI запущен" } else { "GoodbyeDPI остановлен" }).into(),
+                Err(error) => format!("{}: {error}", tr(self.language, "Không thể đổi dịch vụ", "Service action failed", "Error del servicio", "Ошибка службы")),
+            };
+            self.action_receiver = None;
+            self.status = query_status();
+            self.last_refresh = Instant::now();
+            self.start_steam_check();
+        }
+        if let Some(Ok(result)) = self.steam_receiver.as_ref().map(|receiver| receiver.try_recv()) {
+            self.steam_result = Some(result);
+            self.steam_receiver = None;
+        }
         if let Some(Ok(result)) = self.update_receiver.as_ref().map(|receiver| receiver.try_recv()) {
             match result {
                 Ok(Some(release)) => { self.update_message = format!("{} available", release.version); self.available_release = Some(release); }
@@ -163,7 +189,7 @@ impl eframe::App for ManagerApp {
             }
             self.download_receiver = None;
         }
-        if self.last_refresh.elapsed() >= Duration::from_secs(1) {
+        if self.action_receiver.is_none() && self.last_refresh.elapsed() >= Duration::from_secs(1) {
             self.status = query_status();
             self.last_refresh = Instant::now();
             self.automatic = query_automatic();
@@ -269,9 +295,29 @@ impl eframe::App for ManagerApp {
                         ui.label(RichText::new(detail).size(13.0).color(BLUE));
                     });
 
+                ui.add_space(16.0);
+                ui.horizontal(|ui| {
+                    if self.steam_receiver.is_some() { ui.add(egui::Spinner::new().size(16.0)); }
+                    let (label, color) = match &self.steam_result {
+                        None => (tr(self.language, "Đang kiểm tra trang Steam…", "Checking Steam website…", "Comprobando el sitio de Steam…", "Проверка сайта Steam…"), BLUE),
+                        Some(Ok(())) => (tr(self.language, "Trang Steam truy cập được", "Steam website is reachable", "El sitio de Steam está disponible", "Сайт Steam доступен"), GREEN),
+                        Some(Err(_)) => (tr(self.language, "Không truy cập được trang Steam", "Steam website is unreachable", "No se puede acceder al sitio de Steam", "Сайт Steam недоступен"), RED),
+                    };
+                    let response = ui.label(RichText::new(label).size(13.0).color(color));
+                    if let Some(Err(error)) = &self.steam_result { response.on_hover_text(error); }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.add_enabled(self.steam_receiver.is_none(), egui::Button::new(tr(self.language, "Kiểm tra lại", "Check again", "Comprobar", "Проверить"))).clicked() {
+                            self.start_steam_check();
+                        }
+                    });
+                });
+                ui.add_space(6.0);
+                ui.label(RichText::new(tr(self.language, "Chỉ kiểm tra website; Steam Client có thể báo lỗi riêng.", "Website check only; Steam Client may have a separate error.", "Solo comprueba el sitio; el cliente puede tener otro error.", "Проверяется только сайт; в клиенте возможна другая ошибка.")).size(11.0).color(BLUE));
                 ui.add_space(20.0);
                 let running = self.status == AppStatus::Running;
-                let action = if running {
+                let action = if self.action_receiver.is_some() {
+                    tr(self.language, "Đang xử lý…", "Working…", "Procesando…", "Обработка…")
+                } else if running {
                     tr(self.language, "Tắt GoodbyeDPI", "Stop GoodbyeDPI", "Detener GoodbyeDPI", "Выключить GoodbyeDPI")
                 } else {
                     tr(self.language, "Bật GoodbyeDPI", "Start GoodbyeDPI", "Activar GoodbyeDPI", "Включить GoodbyeDPI")
@@ -279,8 +325,14 @@ impl eframe::App for ManagerApp {
                 let button = egui::Button::new(RichText::new(action).size(15.0).strong())
                     .fill(if running { Color32::from_rgb(61, 68, 76) } else { Color32::from_rgb(54, 103, 79) })
                     .min_size(Vec2::new(ui.available_width(), 48.0));
-                if ui.add_enabled(matches!(self.status, AppStatus::Running | AppStatus::Stopped), button).clicked() {
+                if ui.add_enabled(self.action_receiver.is_none() && matches!(self.status, AppStatus::Running | AppStatus::Stopped), button).clicked() {
                     self.run_action(!running);
+                }
+                if self.action_receiver.is_some() {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Spinner::new().size(15.0));
+                        ui.label(tr(self.language, "Đang đổi trạng thái dịch vụ…", "Changing service state…", "Cambiando el estado del servicio…", "Изменение состояния службы…"));
+                    });
                 }
                 ui.add_space(18.0);
                 if ui.link("Buy me a coffee").clicked() { self.show_coffee = true; }
@@ -292,7 +344,7 @@ impl eframe::App for ManagerApp {
                     ui.label(RichText::new(if self.message.is_empty() { tr(self.language, "Sẵn sàng", "Ready", "Listo", "Готово") } else { &self.message }).size(13.0).color(Color32::from_rgb(203, 213, 225)));
                 });
                 ui.with_layout(Layout::bottom_up(Align::RIGHT), |ui| {
-                    ui.label(RichText::new("GoodbyeDPI Manager 1.01").size(11.0).color(Color32::from_rgb(140, 149, 159)));
+                    ui.label(RichText::new("GoodbyeDPI Manager 1.02").size(11.0).color(Color32::from_rgb(140, 149, 159)));
                 });
             });
         if self.confirm_uninstall {
@@ -328,21 +380,25 @@ impl ManagerApp {
     fn run_action(&mut self, start: bool) {
         self.status = AppStatus::Pending;
         self.message.clear();
-
-        match set_service_running(start) {
-            Ok(()) => {
-                self.message = if start {
-                    tr(self.language, "Đã bật GoodbyeDPI", "GoodbyeDPI started", "GoodbyeDPI activado", "GoodbyeDPI запущен")
-                } else {
-                    tr(self.language, "Đã tắt GoodbyeDPI", "GoodbyeDPI stopped", "GoodbyeDPI detenido", "GoodbyeDPI остановлен")
-                }
-                .to_owned();
-            }
-            Err(error) => self.message = format!("{}: {error}", tr(self.language, "Không thể đổi dịch vụ", "Service action failed", "Error del servicio", "Ошибка службы")),
-        }
-        self.status = query_status();
-        self.last_refresh = Instant::now();
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || { let _ = sender.send((start, set_service_running(start))); });
+        self.action_receiver = Some(receiver);
     }
+
+    fn start_steam_check(&mut self) {
+        self.steam_result = None;
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || { let _ = sender.send(check_steam_website()); });
+        self.steam_receiver = Some(receiver);
+    }
+}
+
+fn check_steam_website() -> Result<(), String> {
+    ureq::head("https://store.steampowered.com/")
+        .timeout(Duration::from_secs(8))
+        .call()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn open_service(access: ServiceAccess) -> windows_service::Result<windows_service::service::Service> {
@@ -367,10 +423,16 @@ fn set_service_running(start: bool) -> Result<(), String> {
     let access = if start { ServiceAccess::START } else { ServiceAccess::STOP } | ServiceAccess::QUERY_STATUS;
     let service = open_service(access).map_err(|error| error.to_string())?;
     if start {
-        service.start(&[] as &[&OsStr]).map_err(|error| error.to_string())
+        service.start(&[] as &[&OsStr]).map_err(|error| error.to_string())?;
     } else {
-        service.stop().map(|_| ()).map_err(|error| error.to_string())
+        service.stop().map_err(|error| error.to_string())?;
     }
+    let expected = if start { AppStatus::Running } else { AppStatus::Stopped };
+    for _ in 0..50 {
+        if query_status() == expected { return Ok(()); }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    Err("Service did not reach the requested state within 10 seconds".into())
 }
 
 fn install_service() -> Result<(), String> {
@@ -404,7 +466,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("GoodbyeDPI Manager")
             .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).expect("invalid app icon"))
-            .with_inner_size([560.0, 520.0])
+            .with_inner_size([560.0, 590.0])
             .with_resizable(false)
             .with_maximize_button(false),
         ..Default::default()

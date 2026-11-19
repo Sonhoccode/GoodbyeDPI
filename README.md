@@ -4,13 +4,14 @@ A Windows desktop app by **[Sonhoccode](https://github.com/Sonhoccode)** for ins
 
 ## Download and install
 
-Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.01](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.01).
+Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.02](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.02).
 
-Run `GoodbyeDPI-Manager-All-in-One-1.01.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. If a `GoodbyeDPI` service already exists, the installer leaves that service unchanged.
+Run `GoodbyeDPI-Manager-All-in-One-1.02.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. If a `GoodbyeDPI` service already exists, the installer leaves that service unchanged.
 
 ## Features
 
 - Start, stop, and monitor the GoodbyeDPI service.
+- See progress while the service changes state, and check whether the Steam website is reachable.
 - Choose the `-5` or `-6` preset. Stop the service before applying a new preset.
 - Set whether the service starts with Windows.
 - Switch between English (default), Vietnamese, Spanish, and Russian. The language choice is saved.
