@@ -1,34 +1,37 @@
 # GoodbyeDPI Manager by Sonhoccode
 
-Ứng dụng Windows do **[Sonhoccode](https://github.com/Sonhoccode)** xây dựng để cài đặt và quản lý GoodbyeDPI bằng giao diện. Đây là bản fork cộng đồng của [GoodbyeDPI gốc bởi ValdikSS](https://github.com/ValdikSS/GoodbyeDPI), không phải bản phát hành chính thức của tác giả gốc.
+A Windows desktop app by **[Sonhoccode](https://github.com/Sonhoccode)** for installing and managing GoodbyeDPI. This is a community fork of [ValdikSS's GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI), not an official release from the original author.
 
-## Tải và cài đặt
+## Download and install
 
-Tải bản mới nhất tại **[Releases](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest)**. Với bản đầu tiên: [GoodbyeDPI Manager 1.00](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.00).
+Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The first release is [GoodbyeDPI Manager 1.00](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.00).
 
-Chạy file `GoodbyeDPI-Manager-All-in-One-1.00.exe` trên Windows 10/11 x64 và chấp nhận yêu cầu Administrator. Bộ cài kèm GoodbyeDPI 0.2.2, WinDivert và ứng dụng quản lý. Nếu máy đã có dịch vụ `GoodbyeDPI`, bộ cài không ghi đè dịch vụ đó.
+Run `GoodbyeDPI-Manager-All-in-One-1.00.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. If a `GoodbyeDPI` service already exists, the installer leaves that service unchanged.
 
-## Chức năng
+## Features
 
-- Bật/tắt và xem trạng thái dịch vụ GoodbyeDPI.
-- Chọn preset `-5` hoặc `-6`; cần dừng dịch vụ trước khi áp dụng.
-- Chọn dịch vụ tự khởi động cùng Windows.
-- Giao diện tiếng Anh (mặc định), tiếng Việt, tiếng Tây Ban Nha và tiếng Nga; ghi nhớ ngôn ngữ đã chọn.
-- Tự kiểm tra release mới khi mở ứng dụng. Khi có bản mới, người dùng chọn **Install** để tải, kiểm tra SHA-256 và chạy bộ cài. Việc cập nhật không diễn ra âm thầm.
-- Gỡ cài đặt từ trang Settings.
+- Start, stop, and monitor the GoodbyeDPI service.
+- Choose the `-5` or `-6` preset. Stop the service before applying a new preset.
+- Set whether the service starts with Windows.
+- Switch between English (default), Vietnamese, Spanish, and Russian. The language choice is saved.
+- Check for a newer release when the app opens. If one is available, choose **Install** to download the installer, verify its SHA-256, and run it. Updates are not installed silently.
+- Uninstall from the Settings page.
 
-GoodbyeDPI có thể không hoạt động trên mọi mạng. Ứng dụng cần quyền quản trị để thay đổi dịch vụ Windows. Bản phát hành chưa có chữ ký số thương mại.
+GoodbyeDPI may not work on every network. Managing the Windows service requires Administrator privileges. This release is not commercially code-signed.
 
-## Buy me a coffee ☕
+## Buy me a coffee
 
-Nếu ứng dụng hữu ích, bạn có thể ủng hộ mình qua mã VietQR dưới đây. Đây là khoản ủng hộ tự nguyện, không ảnh hưởng đến chức năng ứng dụng.
+Support is optional and does not affect any app features. The same QR code is available from the **Buy me a coffee** button in the app.
 
-<img src="manager/assets/coffee.jpg" alt="Mã VietQR ủng hộ Sonhoccode" width="320">
+<details>
+<summary>Show VietQR support code</summary>
 
-Mã QR cũng có thể mở bằng nút **Buy me a coffee** trong ứng dụng.
+<img src="manager/assets/coffee.jpg" alt="VietQR support code for Sonhoccode" width="320">
 
-## Mã nguồn và ghi công
+</details>
 
-Mã Rust của ứng dụng, icon và bộ cài nằm trong [`manager/`](manager/). Hướng dẫn build: [`manager/README.md`](manager/README.md).
+## Source and credits
 
-GoodbyeDPI engine thuộc [ValdikSS](https://github.com/ValdikSS/GoodbyeDPI); WinDivert thuộc [basil00](https://github.com/basil00/Divert). Các giấy phép đi kèm trong [`manager/engine/licenses/`](manager/engine/licenses/). Mã nguồn engine gốc trong fork này vẫn giữ nguyên lịch sử và giấy phép upstream.
+The Rust app, icon, and installer are in [`manager/`](manager/). See its [build instructions](manager/README.md).
+
+The GoodbyeDPI engine is by [ValdikSS](https://github.com/ValdikSS/GoodbyeDPI), and WinDivert is by [basil00](https://github.com/basil00/Divert). Their licenses are included in [`manager/engine/licenses/`](manager/engine/licenses/). This fork retains the upstream engine's source history and license.
