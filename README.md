@@ -4,9 +4,9 @@ A Windows desktop app by **[Sonhoccode](https://github.com/Sonhoccode)** for ins
 
 ## Download and install
 
-Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The first release is [GoodbyeDPI Manager 1.00](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.00).
+Get the installer from the [latest release](https://github.com/Sonhoccode/GoodbyeDPI/releases/latest). The current release is [GoodbyeDPI Manager 1.01](https://github.com/Sonhoccode/GoodbyeDPI/releases/tag/v1.01).
 
-Run `GoodbyeDPI-Manager-All-in-One-1.00.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. If a `GoodbyeDPI` service already exists, the installer leaves that service unchanged.
+Run `GoodbyeDPI-Manager-All-in-One-1.01.exe` on Windows 10/11 x64 and approve the Administrator prompt. The installer bundles GoodbyeDPI 0.2.2, WinDivert, and the manager app. If a `GoodbyeDPI` service already exists, the installer leaves that service unchanged.
 
 ## Features
 

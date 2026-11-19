@@ -292,7 +292,7 @@ impl eframe::App for ManagerApp {
                     ui.label(RichText::new(if self.message.is_empty() { tr(self.language, "Sẵn sàng", "Ready", "Listo", "Готово") } else { &self.message }).size(13.0).color(Color32::from_rgb(203, 213, 225)));
                 });
                 ui.with_layout(Layout::bottom_up(Align::RIGHT), |ui| {
-                    ui.label(RichText::new("GoodbyeDPI Manager 1.00").size(11.0).color(Color32::from_rgb(140, 149, 159)));
+                    ui.label(RichText::new("GoodbyeDPI Manager 1.01").size(11.0).color(Color32::from_rgb(140, 149, 159)));
                 });
             });
         if self.confirm_uninstall {
@@ -415,6 +415,7 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
+            egui_extras::install_image_loaders(&cc.egui_ctx);
             Ok(Box::<ManagerApp>::default())
         }),
     )
@@ -429,6 +430,13 @@ mod tests {
         assert_eq!(AppStatus::from_service_state(ServiceState::Running), AppStatus::Running);
         assert_eq!(AppStatus::from_service_state(ServiceState::Stopped), AppStatus::Stopped);
         assert_eq!(AppStatus::from_service_state(ServiceState::StartPending), AppStatus::Pending);
+    }
+
+    #[test]
+    fn coffee_qr_decodes() {
+        let image = image::load_from_memory(include_bytes!("../assets/coffee.jpg")).unwrap();
+        assert_eq!(image.width(), 920);
+        assert_eq!(image.height(), 1112);
     }
 }
 

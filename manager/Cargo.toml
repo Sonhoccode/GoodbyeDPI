@@ -1,11 +1,13 @@
 [package]
 name = "goodbyedpi-manager"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 build = "build.rs"
 
 [dependencies]
 eframe = "0.37.0"
+egui_extras = { version = "0.37.0", default-features = false, features = ["image"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg"] }
 windows-service = "0.8.1"
 ureq = { version = "2.12", features = ["json"] }
 serde_json = "1"
