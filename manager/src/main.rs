@@ -2,7 +2,7 @@
 
 use std::ffi::OsStr;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
@@ -85,24 +85,62 @@ fn save_language(language: usize) -> std::io::Result<()> {
     fs::write(path, language.to_string())
 }
 
-const DNS_ARGS: &str = "--dns-addr 77.88.8.8 --dns-port 1253 --dnsv6-addr 2a02:6b8::feed:0ff --dnsv6-port 1253";
+const LEGACY_DNS_ARGS: &str = "--dns-addr 77.88.8.8 --dns-port 1253 --dnsv6-addr 2a02:6b8::feed:0ff --dnsv6-port 1253";
+
+fn preset_from_command(command: &str) -> usize {
+    if command.split_whitespace().any(|argument| argument == "-6") { 1 } else { 0 }
+}
 
 fn query_preset() -> usize {
     open_service(ServiceAccess::QUERY_CONFIG).and_then(|service| service.query_config()).ok()
-        .map(|config| if config.executable_path.to_string_lossy().contains(" -6 ") { 1 } else { 0 })
+        .map(|config| preset_from_command(&config.executable_path.to_string_lossy()))
         .unwrap_or(0)
 }
 
 fn apply_preset(preset: usize) -> Result<(), String> {
     if query_status() != AppStatus::Stopped { return Err("Stop the service first".into()); }
+    change_service_preset(if preset == 1 { "-6" } else { "-5" })
+}
+
+fn bundled_engine() -> Result<PathBuf, String> {
     let engine = std::env::current_exe().map_err(|error| error.to_string())?
         .parent().ok_or("Missing application directory")?.join("engine").join("goodbyedpi.exe");
     if !engine.is_file() { return Err("Bundled engine not found".into()); }
-    let mode = if preset == 1 { "-6" } else { "-5" };
-    let command_line = format!("\"{}\" {mode} {DNS_ARGS}", engine.display());
-    let output = Command::new("sc.exe").args(["config", SERVICE_NAME, "binPath=", &command_line])
-        .output().map_err(|error| error.to_string())?;
-    if output.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&output.stdout).trim().to_owned()) }
+    Ok(engine)
+}
+
+fn change_service_preset(mode: &str) -> Result<(), String> {
+    let service = open_service(ServiceAccess::QUERY_CONFIG | ServiceAccess::CHANGE_CONFIG)
+        .map_err(|error| error.to_string())?;
+    let config = service.query_config().map_err(|error| error.to_string())?;
+    let info = ServiceInfo {
+        name: SERVICE_NAME.into(), display_name: config.display_name,
+        service_type: config.service_type, start_type: config.start_type,
+        error_control: config.error_control, executable_path: bundled_engine()?,
+        launch_arguments: vec![mode.into()], dependencies: config.dependencies,
+        account_name: config.account_name, account_password: None,
+    };
+    service.change_config(&info).map_err(|error| error.to_string())
+}
+
+fn legacy_dns_mode(command: &str, engine: &Path) -> Option<&'static str> {
+    ["-5", "-6"].into_iter().find(|mode| {
+        command.eq_ignore_ascii_case(&format!("\"{}\" {mode} {LEGACY_DNS_ARGS}", engine.display()))
+    })
+}
+
+fn migrate_legacy_dns_service() -> Result<(), String> {
+    let engine = bundled_engine()?;
+    let service = open_service(ServiceAccess::QUERY_CONFIG).map_err(|error| error.to_string())?;
+    let config = service.query_config().map_err(|error| error.to_string())?;
+    let Some(mode) = legacy_dns_mode(&config.executable_path.to_string_lossy(), &engine) else { return Ok(()); };
+    let was_running = query_status() == AppStatus::Running;
+    change_service_preset(mode)?;
+    if was_running {
+        set_service_running(false)?;
+        set_service_running(true)?;
+    }
+    Ok(())
 }
 
 fn query_automatic() -> bool {
@@ -344,7 +382,7 @@ impl eframe::App for ManagerApp {
                     ui.label(RichText::new(if self.message.is_empty() { tr(self.language, "Sẵn sàng", "Ready", "Listo", "Готово") } else { &self.message }).size(13.0).color(Color32::from_rgb(203, 213, 225)));
                 });
                 ui.with_layout(Layout::bottom_up(Align::RIGHT), |ui| {
-                    ui.label(RichText::new("GoodbyeDPI Manager 1.02").size(11.0).color(Color32::from_rgb(140, 149, 159)));
+                    ui.label(RichText::new("GoodbyeDPI Manager 1.03").size(11.0).color(Color32::from_rgb(140, 149, 159)));
                 });
             });
         if self.confirm_uninstall {
@@ -447,7 +485,7 @@ fn install_service() -> Result<(), String> {
         name: SERVICE_NAME.into(), display_name: "GoodbyeDPI".into(),
         service_type: ServiceType::OWN_PROCESS, start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal, executable_path: engine,
-        launch_arguments: ["-5", "--dns-addr", "77.88.8.8", "--dns-port", "1253", "--dnsv6-addr", "2a02:6b8::feed:0ff", "--dnsv6-port", "1253"].into_iter().map(Into::into).collect(),
+        launch_arguments: vec!["-5".into()],
         dependencies: vec![], account_name: None, account_password: None,
     };
     manager.create_service(&info, ServiceAccess::QUERY_STATUS).map_err(|error| error.to_string())?;
@@ -455,6 +493,13 @@ fn install_service() -> Result<(), String> {
 }
 
 fn main() -> eframe::Result {
+    if std::env::args_os().any(|arg| arg == "--migrate-service") {
+        if let Err(error) = migrate_legacy_dns_service() {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     if std::env::args_os().any(|arg| arg == "--install-service") {
         if let Err(error) = install_service() {
             eprintln!("{error}");
@@ -499,6 +544,15 @@ mod tests {
         let image = image::load_from_memory(include_bytes!("../assets/coffee.jpg")).unwrap();
         assert_eq!(image.width(), 920);
         assert_eq!(image.height(), 1112);
+    }
+
+    #[test]
+    fn identifies_plain_and_legacy_presets() {
+        let engine = Path::new(r"C:\Program Files\GoodbyeDPI Manager\engine\goodbyedpi.exe");
+        assert_eq!(preset_from_command(&format!("\"{}\" -6", engine.display())), 1);
+        assert_eq!(preset_from_command(&format!("\"{}\" -5", engine.display())), 0);
+        assert_eq!(legacy_dns_mode(&format!("\"{}\" -5 {LEGACY_DNS_ARGS}", engine.display()), engine), Some("-5"));
+        assert_eq!(legacy_dns_mode(&format!("\"{}\" -5", engine.display()), engine), None);
     }
 }
 

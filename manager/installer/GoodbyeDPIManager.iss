@@ -1,5 +1,5 @@
 #define MyAppName "GoodbyeDPI Manager"
-#define MyAppVersion "1.02"
+#define MyAppVersion "1.03"
 #define MyAppExeName "goodbyedpi-manager.exe"
 
 [Setup]
@@ -11,7 +11,7 @@ DefaultDirName={autopf}\GoodbyeDPI Manager
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=..\..\..\..\outputs
-OutputBaseFilename=GoodbyeDPI-Manager-All-in-One-1.02
+OutputBaseFilename=GoodbyeDPI-Manager-All-in-One-1.03
 SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
@@ -51,13 +51,20 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
+  OwnedPath: String;
   ResultCode: Integer;
 begin
-  if (CurStep = ssPostInstall) and not ServiceExists then begin
-    if not Exec(ExpandConstant('{app}\{#MyAppExeName}'), '--install-service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('Could not create GoodbyeDPI service. Error: ' + IntToStr(ResultCode));
-    RegWriteStringValue(HKLM, ServiceKey, 'OwnedServicePath', ExpandConstant('{app}\engine\goodbyedpi.exe'));
-    Exec(ExpandConstant('{sys}\sc.exe'), 'start GoodbyeDPI', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if CurStep = ssPostInstall then begin
+    if not ServiceExists then begin
+      if not Exec(ExpandConstant('{app}\{#MyAppExeName}'), '--install-service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        RaiseException('Could not create GoodbyeDPI service. Error: ' + IntToStr(ResultCode));
+      RegWriteStringValue(HKLM, ServiceKey, 'OwnedServicePath', ExpandConstant('{app}\engine\goodbyedpi.exe'));
+      Exec(ExpandConstant('{sys}\sc.exe'), 'start GoodbyeDPI', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end else if RegQueryStringValue(HKLM, ServiceKey, 'OwnedServicePath', OwnedPath) and
+      (CompareText(OwnedPath, ExpandConstant('{app}\engine\goodbyedpi.exe')) = 0) then begin
+      if not Exec(ExpandConstant('{app}\{#MyAppExeName}'), '--migrate-service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        MsgBox('Could not update the GoodbyeDPI service. Stop it and apply a preset in Settings.', mbError, MB_OK);
+    end;
   end;
 end;
 
